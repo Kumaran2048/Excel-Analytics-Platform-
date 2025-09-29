@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorMiddleware');
 
@@ -17,34 +18,46 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
-// Enable CORS
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
-  credentials: true
-}));
+// ✅ Enable CORS using environment variable
+const allowedOrigins = process.env.FRONTEND_URLS
+  ? process.env.FRONTEND_URLS.split(',')
+  : ['http://localhost:5173', 'http://127.0.0.1:5173'];
 
-// Create uploads directory if it doesn't exist
-const fs = require('fs');
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+  })
+);
+
+// ✅ Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Routes
+// ✅ Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/excel', require('./routes/excelRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 
-// Health check endpoint
+// ✅ Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ message: 'Server is running!' });
 });
 
-// Error handler middleware
+// ✅ Error handler middleware
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
