@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorMiddleware');
+const serverless = require('serverless-http'); // ✅ required for Vercel
 
 // Load env vars
 dotenv.config();
@@ -26,7 +27,6 @@ const allowedOrigins = process.env.FRONTEND_URLS
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -56,8 +56,12 @@ app.get('/api/health', (req, res) => {
 // ✅ Error handler middleware
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+// ❌ REMOVE app.listen (not needed on Vercel)
+// const PORT = process.env.PORT || 5000;
+// app.listen(PORT, () => {
+//   console.log(`✅ Server running on port ${PORT}`);
+// });
 
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
+// ✅ Export for Vercel
+module.exports = app;
+module.exports.handler = serverless(app);
