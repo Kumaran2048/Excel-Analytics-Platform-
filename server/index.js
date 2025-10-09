@@ -3,33 +3,46 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
+const helmet = require('helmet'); // ⬅️ NEW
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorMiddleware');
 
-// Load env vars
 dotenv.config();
-
-// Connect to database
 connectDB();
 
 const app = express();
 
-// Body parser middleware
+// ✅ Security Headers
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        connectSrc: ["'self'", "http://localhost:5173"], // Update with your frontend URLs
+        imgSrc: ["'self'", "data:", "blob:"],
+      },
+    },
+  })
+);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
-// ✅ Enable CORS using environment variable
 const allowedOrigins = process.env.FRONTEND_URLS
-  ? process.env.FRONTEND_URLS.split(',')
-  : ['http://localhost:5173', 'http://127.0.0.1:5173'];
+  ? process.env.FRONTEND_URLS.split(',').map(url => url.trim())
+  : ['http://localhost:5173'];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.error(`❌ Blocked by CORS: ${origin}`);
         callback(new Error('Not allowed by CORS'));
       }
     },
@@ -37,27 +50,35 @@ app.use(
   })
 );
 
-// ✅ Create uploads directory if it doesn't exist
+// ✅ Serve public or frontend assets
+app.use(express.static(path.join(__dirname, 'public'))); // Or 'frontend/dist'
+
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+app.use('/uploads', express.static(uploadsDir));
 
-// ✅ Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/excel', require('./routes/excelRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 
-// ✅ Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ message: 'Server is running!' });
+  res.json({
+    status: 'OK',
+    message: '✅ Server is running successfully',
+    environment: process.env.NODE_ENV || 'development',
+  });
 });
 
-// ✅ Error handler middleware
+app.get('/', (req, res) => {
+  res.send('🚀 Excel Analytics Backend API is live!');
+});
+
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
+  console.log(`Allowed Origins: ${allowedOrigins.join(', ')}`);
 });
